@@ -1,0 +1,40 @@
+[
+  {
+    "name": "client1",
+    "ips": [
+      "10.10.0.2/32"
+    ],
+    "publicKey": "HE8xgPQ4lPXXlmDCl00FEbJYhtcP501U+pdHEqKS/2k=",
+    "privateKey": "SHKOu2TrqW0rkkPCoNMEHzG7YlYb8Omb5uvo4bgs20Y=",
+    "disabled": false,
+    "createdAt": "2026-01-06T04:26:46.555Z"
+  },
+  {
+    "name": "client2",
+    "ips": [
+      "10.10.0.3/32"
+    ],
+    "publicKey": "ecHZ+VuBgO0scXNSB3uYpqkA/IxljpV5OXHwbBltcXA=",
+    "privateKey": "cMd8vK4SNa0i4r0a3zj9VF8p3YKtmafTit3nsVDzdEE=",
+    "disabled": false,
+    "createdAt": "2026-01-06T04:36:43.459Z"
+  },
+  {
+    "name": "client3",
+    "privateKey": "mLq/z9OYkiKoyP2oU14yr65QgIm1FDZ4DETPrzGMqU4=",
+    "publicKey": "whdcc8meVSHrx/2z+tcJw2PntXny9a0VtSZq7Swx9h0=",
+    "ips": [
+      "10.10.0.4/32"
+    ],
+    "disabled": false
+  },
+  {
+    "name": "aphine-2",
+    "privateKey": "KJ/8DSiQ/g2qagluYKZsEqGB+kvxOdCdLjOdZHAZ51A=",
+    "publicKey": "rfTZ06ruY3B9x98arKRpp+n+v618idGElkm6SysElms=",
+    "ips": [
+      "10.10.0.6/32"
+    ],
+    "disabled": false
+  }
+]

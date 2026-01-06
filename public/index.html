@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>WireGuard Web UI</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    background: #0f172a;
+    color: #e5e7eb;
+    margin: 0;
+    padding: 20px;
+  }
+  h1, h2 { margin-top: 0 }
+  .card {
+    background: #020617;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th, td {
+    border-bottom: 1px solid #1e293b;
+    padding: 8px;
+    text-align: left;
+    font-size: 14px;
+  }
+  th { color: #93c5fd }
+  input, textarea, button {
+    background: #020617;
+    border: 1px solid #334155;
+    color: #e5e7eb;
+    padding: 6px;
+    border-radius: 4px;
+  }
+  button {
+    cursor: pointer;
+    margin-right: 4px;
+  }
+  button.danger { border-color: #ef4444; color: #ef4444 }
+  button.warn { border-color: #f59e0b; color: #f59e0b }
+  button.ok { border-color: #22c55e; color: #22c55e }
+  .row { display: flex; gap: 8px; flex-wrap: wrap }
+  .muted { color: #64748b; font-size: 12px }
+</style>
+</head>
+
+<body>
+
+<h1>🔐 WireGuard Web UI</h1>
+
+<!-- SERVER STATUS -->
+<div class="card">
+  <h2>Server Status</h2>
+  <div id="serverStatus">Loading...</div>
+  <div class="row">
+    <button onclick="restartServer()" class="warn">Restart WG</button>
+    <button onclick="rotateServerKeys()" class="danger">Rotate Keys</button>
+  </div>
+</div>
+
+<!-- ADD PEER -->
+<div class="card">
+  <h2>Add Peer</h2>
+  <div class="row">
+    <input id="peerName" placeholder="Peer name" />
+    <input id="peerIPs" placeholder="Allowed IPs (comma separated)" />
+    <button onclick="addPeer()" class="ok">Add</button>
+  </div>
+</div>
+
+<!-- PEER LIST -->
+<div class="card">
+  <h2>Peers</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Allowed IPs</th>
+        <th>Status</th>
+        <th>Transfer</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="peerTable"></tbody>
+  </table>
+</div>
+
+<!-- EDIT PEER MODAL -->
+<div id="editModal" style="display:none; position:fixed; inset:0; background:#000a;">
+  <div style="
+    background:#020617;
+    border:1px solid #1e293b;
+    border-radius:8px;
+    max-width:400px;
+    margin:10% auto;
+    padding:16px;
+  ">
+    <h3>Edit Peer</h3>
+
+    <input type="hidden" id="editOldName">
+
+    <label>Name</label><br>
+    <input id="editName" style="width:100%"><br><br>
+
+    <label>Allowed IPs (comma separated)</label><br>
+    <textarea id="editIPs" style="width:100%" rows="3"></textarea><br><br>
+
+    <label>
+      <input type="checkbox" id="editRotateKeys">
+      Rotate keys
+    </label>
+
+    <div style="margin-top:12px; text-align:right">
+      <button onclick="closeEdit()">Cancel</button>
+      <button onclick="saveEdit()" class="ok">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT PEER POPUP -->
+<div id="editPopup" style="
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.6);
+  z-index:1000;
+">
+  <div style="
+    background:#020617;
+    border:1px solid #1e293b;
+    border-radius:8px;
+    width:360px;
+    margin:10% auto;
+    padding:16px;
+  ">
+    <h3>Edit Peer</h3>
+
+    <input type="hidden" id="editOldName">
+
+    <label>Peer Name</label>
+    <input id="editName" style="width:100%">
+
+    <label style="margin-top:8px">Allowed IPs</label>
+    <textarea id="editIPs" rows="3" style="width:100%"></textarea>
+
+    <label style="display:block;margin-top:8px">
+      <input type="checkbox" id="editRotateKeys">
+      Rotate keys
+    </label>
+
+    <div style="margin-top:12px; text-align:right">
+      <button onclick="closeEditPopup()">Cancel</button>
+      <button onclick="submitEdit()" class="ok">Edit</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+const API = "";
+
+async function api(url, method = "GET", body) {
+  const res = await fetch(API + url, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  return res.json();
+}
+
+/* ================= SERVER ================= */
+
+async function loadServerStatus() {
+  const s = await api("/api/server/status");
+  document.getElementById("serverStatus").innerHTML = `
+    <b>Interface:</b> ${s.interface}<br>
+    <b>Status:</b> ${s.service}<br>
+    <b>Port:</b> ${s.listenPort}<br>
+    <b>Peers:</b> ${s.peers}
+  `;
+}
+
+async function restartServer() {
+  if (!confirm("Restart WireGuard server?")) return;
+  await api("/api/server/restart", "POST");
+  loadServerStatus();
+}
+
+async function rotateServerKeys() {
+  if (!confirm("Rotate SERVER keys? Clients must be updated!")) return;
+  await api("/api/server/keys", "PUT", { rotate: true });
+  loadServerStatus();
+}
+
+/* ================= PEERS ================= */
+
+async function loadPeers() {
+  const peers = await api("/api/peers");
+  const tbody = document.getElementById("peerTable");
+  tbody.innerHTML = "";
+
+  peers.forEach(p => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${p.name}</td>
+      <td>${p.ips.join("<br>")}</td>
+      <td>${p.disabled ? "❌ Disabled" : "✅ Active"}</td>
+      <td class="muted">
+        ${p.status?.transfer || "-"}<br>
+        ${p.status?.handshake || ""}
+      </td>
+      <td>
+      <button onclick='openEditPopup(${JSON.stringify(p)})'>Edit</button>
+      ${p.disabled
+        ? `<button onclick="enablePeer('${p.name}')" class="ok">Enable</button>`
+        : `<button onclick="disablePeer('${p.name}')" class="warn">Disable</button>`
+      }
+      <button onclick="deletePeer('${p.name}')" class="danger">Delete</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function addPeer() {
+  const name = peerName.value.trim();
+  const ips = peerIPs.value.split(",").map(i => i.trim()).filter(Boolean);
+
+  if (!name || !ips.length) {
+    alert("Name and IPs required");
+    return;
+  }
+
+  await api("/api/peers", "POST", { name, ips });
+  peerName.value = "";
+  peerIPs.value = "";
+  loadPeers();
+}
+
+function openEdit(peerJson) {
+  const peer = JSON.parse(decodeURIComponent(peerJson));
+
+  document.getElementById("editOldName").value = peer.name;
+  document.getElementById("editName").value = peer.name;
+  document.getElementById("editIPs").value = peer.ips.join(", ");
+  document.getElementById("editRotateKeys").checked = false;
+
+  document.getElementById("editModal").style.display = "block";
+}
+
+function closeEdit() {
+  document.getElementById("editModal").style.display = "none";
+}
+
+async function saveEdit() {
+  const oldName = editOldName.value;
+  const name = editName.value.trim();
+  const ips = editIPs.value
+    .split(",")
+    .map(i => i.trim())
+    .filter(Boolean);
+  const rotateKeys = editRotateKeys.checked;
+
+  if (!name || !ips.length) {
+    alert("Name and IPs required");
+    return;
+  }
+
+  await api(`/api/peers/${oldName}`, "PUT", {
+    name,
+    ips,
+    rotateKeys
+  });
+
+  closeEdit();
+  loadPeers();
+}
+
+function openEditPopup(peer) {
+  document.getElementById("editOldName").value = peer.name;
+  document.getElementById("editName").value = peer.name;
+  document.getElementById("editIPs").value = peer.ips.join(", ");
+  document.getElementById("editRotateKeys").checked = false;
+
+  document.getElementById("editPopup").style.display = "block";
+}
+
+function closeEditPopup() {
+  document.getElementById("editPopup").style.display = "none";
+}
+
+async function submitEdit() {
+  const oldName = editOldName.value;
+  const name = editName.value.trim();
+  const ips = editIPs.value
+    .split(",")
+    .map(ip => ip.trim())
+    .filter(Boolean);
+  const rotateKeys = editRotateKeys.checked;
+
+  if (!name || !ips.length) {
+    alert("Name and Allowed IPs are required");
+    return;
+  }
+
+  await api(`/api/peers/${oldName}`, "PUT", {
+    name,
+    ips,
+    rotateKeys
+  });
+
+  closeEditPopup();
+  loadPeers();
+}
+
+
+
+async function disablePeer(name) {
+  await api(`/api/peers/${name}/disable`, "POST");
+  loadPeers();
+}
+
+async function enablePeer(name) {
+  await api(`/api/peers/${name}/enable`, "POST");
+  loadPeers();
+}
+
+async function deletePeer(name) {
+  if (!confirm(`Delete peer ${name}?`)) return;
+  await api(`/api/peers/${name}`, "DELETE");
+  loadPeers();
+}
+
+
+
+/* ================= INIT ================= */
+
+loadServerStatus();
+loadPeers();
+setInterval(loadPeers, 5000);
+</script>
+
+</body>
+</html>
