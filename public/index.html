@@ -104,6 +104,9 @@ table th{
 <div class="card">
   <h2>WireGuard Admin</h2>
   <div class="actions">
+    <button onclick="downloadPeerBackup()">Backup Peers</button>
+    <button onclick="restorePeerBackup()">Restore Peers</button>
+    <input type="file" id="peerRestoreFile" accept=".json" hidden>
     <button onclick="openChangePassword()">Change Password</button>
     <button class="danger" onclick="logout()">Logout</button>
   </div>
@@ -258,6 +261,16 @@ async function api(url, method="GET", body){
 }
 
 /* SERVER */
+let serverInfo = null;
+
+async function loadServerInfo(){
+  if(serverInfo) return serverInfo;
+
+  const r = await fetch("/api/server");
+  serverInfo = await r.json();
+  return serverInfo;
+}
+
 async function loadServer(){
   const s = await api("/api/server/status");
   serverStatus.innerHTML = `
@@ -290,7 +303,6 @@ async function loadPeers(){
 function renderPeers(){
   const start = (currentPage - 1) * pageSize;
   const pagePeers = allPeers.slice(start, start + pageSize);
-  console.log(pagePeers)
 
   peersBody.innerHTML = "";
   pagePeers.forEach(p => addPeerRow(p));
@@ -428,6 +440,7 @@ async function saveEdit(){
 
 
 function buildClientConfig(showPrivate=false){
+  const server = serverInfo ;
   const priv = showPrivate
     ? editPrivateKey.value
     : "************ HIDDEN ************";
@@ -439,9 +452,9 @@ PrivateKey = ${priv}
 Address = ${editIPs.value.split(",")[0].trim()}
 
 [Peer]
-PublicKey = tlOgVtfFTtN0hlumZZUNHLrhRWp34vk+/rI1gce0O24=
-Endpoint = server1.abadiserver.my.id:50000
-AllowedIPs = 10.10.1.0/24
+PublicKey = ${server.publicKey}
+Endpoint = ${server.hostname}:${server.listenPort}
+AllowedIPs = ${server.network}
 PersistentKeepalive = 25
 `.trim();
 }
@@ -556,7 +569,38 @@ async function changePassword(){
   }
 }
 
+/* backup restore */
+function downloadPeerBackup(){
+  window.location.href = "/api/peers/backup";
+}
 
+function restorePeerBackup(){
+  if(!confirm("This will overwrite ALL peer data. Continue?")) return;
+  document.getElementById("peerRestoreFile").click();
+}
+
+document.getElementById("peerRestoreFile").onchange = async function(){
+  const f = this.files[0];
+  if(!f) return;
+
+  const fd = new FormData();
+  fd.append("backup", f);
+
+  const res = await fetch("/api/peers/restore",{
+    method:"POST",
+    body: fd
+  });
+
+  const r = await res.json();
+
+  if(!res.ok){
+    alert(r.error || "Restore failed");
+    return;
+  }
+
+  alert(`Restore success: ${r.count} peers loaded`);
+  loadPeers(); // refresh table
+};
 
 /* INIT */
 fetch("/api/peers").then(r=>{
@@ -565,6 +609,7 @@ fetch("/api/peers").then(r=>{
 
 loadServer();
 loadPeers();
+loadServerInfo();
 setInterval(loadPeers,5000);
 </script>
 

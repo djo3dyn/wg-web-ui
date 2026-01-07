@@ -4,6 +4,12 @@ const { execSync } = require("child_process");
 const session = require("express-session");
 const bcrypt = require("bcrypt");
 const AUTH_FILE = "./data/auth.json";
+const path = require("path");
+
+const multer = require("multer");
+const upload = multer({
+  limits:{ fileSize: 1024 * 1024 } // 1MB
+});
 
 const app = express();
 app.use(express.json());
@@ -15,9 +21,17 @@ app.use(session({
 }));
 
 
-const WG_IFACE = "wg0";
-const WG_CONF = "/etc/wireguard/wg0.conf";
-const PEER_FILE = "./data/peers.json";
+const CONFIG_FILE = process.env.APP_CONFIG || "./config.json";
+
+const config = JSON.parse(
+  fs.readFileSync(CONFIG_FILE)
+);
+
+const WG_IFACE = config.wireguard.interface;
+const WG_CONF = config.wireguard.configFile;
+const PEER_FILE = config.paths.peerFile;
+const SERVER_FILE = config.paths.serverFile;
+const APP_PORT = config.app.port;
 
 /* =======================
    UTILITIES
@@ -162,6 +176,21 @@ app.put("/api/server/port", (req, res) => {
 app.post("/api/server/restart", (req, res) => {
   run(`systemctl restart wg-quick@${WG_IFACE}`);
   res.json({ status: "restarted" });
+});
+
+app.get("/api/server", (req,res)=>{
+  const server = JSON.parse(
+    fs.readFileSync(SERVER_FILE)
+  );
+
+  res.json({
+    interface: server.interface,
+    address: server.address,
+    network: server.network,
+    hostname: server.hostname,
+    listenPort: server.listenPort,
+    publicKey: server.publicKey
+  });
 });
 
 /* =======================
@@ -325,11 +354,97 @@ app.delete("/api/peers/:name", (req, res) => {
   res.json({ status: "deleted" });
 });
 
+/* =======================
+   BACKUP / RESTORE
+======================= */
+
+app.get("/api/peers/backup", (req,res)=>{
+  const file = PEER_FILE;
+
+  if(!fs.existsSync(file)){
+    return res.status(404).json({error: file + " not found  "});
+  }
+
+  const peers = JSON.parse(fs.readFileSync(file));
+
+  const backup = {
+    type: "wgui-peer-backup",
+    version: 1,
+    timestamp: new Date().toISOString(),
+    peers
+  };
+
+  res.setHeader(
+    "Content-Disposition",
+    "attachment; filename=wgui-peers-backup.json"
+  );
+  res.json(backup);
+});
+
+app.post(
+  "/api/peers/restore",
+  upload.single("backup"),
+  (req,res)=>{
+    let data;
+
+    try{
+      data = JSON.parse(req.file.buffer.toString());
+    }catch{
+      return res.status(400).json({error:"Invalid JSON"});
+    }
+
+    if(
+      data.type !== "wgui-peer-backup" ||
+      !Array.isArray(data.peers)
+    ){
+      return res.status(400).json({error:"Invalid backup format"});
+    }
+
+    // 1️⃣ write peer.json
+    fs.writeFileSync(
+      PEER_FILE,
+      JSON.stringify(data.peers,null,2)
+    );
+
+    // 2️⃣ sync live WireGuard
+    clearWireGuardPeers();
+    syncPeersToWireGuard(data.peers);
+
+    res.json({
+      ok:true,
+      count:data.peers.length,
+      message:"Peers restored and synced to WireGuard"
+    });
+  }
+);
+
+/* SYnc PEERS TO WG INTERFACE */
+function clearWireGuardPeers(){
+  const out = execSync(`wg show ${WG_IFACE} peers`).toString().trim();
+  if(!out) return;
+
+  out.split("\n").forEach(pub=>{
+    run(`wg set ${WG_IFACE} peer ${pub} remove`);
+  });
+}
+
+function syncPeersToWireGuard(peers){
+  peers.forEach(p=>{
+    if(p.disabled) return;
+
+    run(
+      `wg set ${WG_IFACE} peer ${p.publicKey} allowed-ips ${p.ips.join(",")}`
+    );
+  });
+
+  wgSave();
+}
+
 
 /* =======================
    START SERVER
 ======================= */
 
-app.listen(3000, () =>
-  console.log("WireGuard UI API running on :3000")
+app.listen(APP_PORT, () =>
+  console.log("WireGuard UI API running on :" + APP_PORT)
 );

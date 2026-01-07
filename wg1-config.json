@@ -1,0 +1,13 @@
+{
+  "app": {
+    "port": 3001
+  },
+  "wireguard": {
+    "interface": "wg1",
+    "configFile": "/etc/wireguard/wg1.conf"
+  },
+  "paths": {
+    "peerFile": "./data/wg1-peers.json",
+    "serverFile": "./data/wg1-server.json"
+  }
+}

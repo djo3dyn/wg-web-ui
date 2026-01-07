@@ -1,0 +1,9 @@
+{
+  "interface": "wg1",
+  "address": "10.10.2.1/24",
+  "network": "10.10.2.0/24",
+  "hostname" : "server1.abadiserver.my.id",
+  "listenPort": 50001,
+  "publicKey": "tlOgVtfFTtN0hlumZZUNHLrhRWp34vk+/rI1gce0O24=",
+  "privateKey": "************"
+}
