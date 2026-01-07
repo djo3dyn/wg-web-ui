@@ -61,6 +61,30 @@ button { cursor:pointer }
   margin:10% auto;
   padding:16px;
 }
+
+.topbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:10px 14px;
+  background:#020617;
+  border-bottom:1px solid #1e293b;
+}
+.topbar .title{
+  font-size:16px;
+  font-weight:bold;
+}
+.topbar .actions button{
+  margin-left:6px;
+}
+button.danger{
+  background:#7f1d1d;
+}
+
+table th{
+  text-align:left;
+}
+
 </style>
 </head>
 
@@ -74,6 +98,14 @@ button { cursor:pointer }
   <div id="serverStatus">Loading...</div>
   <div class="row" style="margin-top:8px">
     <button class="warn" onclick="restartServer()">Restart</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>WireGuard Admin</h2>
+  <div class="actions">
+    <button onclick="openChangePassword()">Change Password</button>
+    <button class="danger" onclick="logout()">Logout</button>
   </div>
 </div>
 
@@ -100,8 +132,10 @@ button { cursor:pointer }
         <th>Actions</th>
       </tr>
     </thead>
-    <tbody id="peerTable"></tbody>
+    <tbody id="peersBody"></tbody>
   </table>
+  <div id="pagination" style="margin-top:10px;text-align:center"></div>
+
 </div>
 
 <!-- EDIT POPUP -->
@@ -189,9 +223,30 @@ button { cursor:pointer }
   </div>
 </div>
 
+<!-- CHANGE PASSWORD POPUP -->
+<div id="passwordPopup" class="popup">
+  <div class="popup-box" style="width:360px">
+    <h3>Change Password</h3>
+
+    <input id="oldPass" type="password" placeholder="Old password">
+    <input id="newPass" type="password" placeholder="New password">
+    <input id="newPass2" type="password" placeholder="Confirm new password">
+
+    <div style="margin-top:12px;text-align:right">
+      <button onclick="closeChangePassword()">Cancel</button>
+      <button class="ok" onclick="changePassword()">Change</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const API = "";
+let currentPage = 1;
+const pageSize = 20;
+let allPeers = [];
+let selectedPeerForConfig = null;
+
+const peersBody = document.getElementById("peersBody");
 
 async function api(url, method="GET", body){
   const r = await fetch(API+url,{
@@ -227,10 +282,24 @@ async function rotateServerKeys(){
 
 /* PEERS */
 async function loadPeers(){
-  const peers = await api("/api/peers");
-  peerTable.innerHTML="";
-  peers.forEach(p=>{
-    const tr=document.createElement("tr");
+  allPeers = await api("/api/peers");
+  currentPage = 1;
+  renderPeers();
+}
+
+function renderPeers(){
+  const start = (currentPage - 1) * pageSize;
+  const pagePeers = allPeers.slice(start, start + pageSize);
+  console.log(pagePeers)
+
+  peersBody.innerHTML = "";
+  pagePeers.forEach(p => addPeerRow(p));
+
+  renderPagination();
+}
+
+function addPeerRow(p){
+  const tr=document.createElement("tr");
     tr.innerHTML=`
       <td>${p.name}</td>
       <td>${p.ips.join("<br>")}</td>
@@ -240,7 +309,7 @@ async function loadPeers(){
         ${p.status?.handshake||""}
       </td>
       <td>
-        <button onclick='openEdit(${JSON.stringify(p)})'>Edit</button>
+        <button onclick='openEdit(${JSON.stringify(p)})'>Show/Edit</button>
         ${p.disabled
           ? `<button class="ok" onclick="enablePeer('${p.name}')">Enable</button>`
           : `<button class="warn" onclick="disablePeer('${p.name}')">Disable</button>`
@@ -248,9 +317,36 @@ async function loadPeers(){
         <button class="danger" onclick="deletePeer('${p.name}')">Delete</button>
       </td>
     `;
-    peerTable.appendChild(tr);
-  });
+    peersBody.appendChild(tr);
 }
+
+
+function renderPagination(){
+  const totalPages = Math.ceil(allPeers.length / pageSize);
+  const el = document.getElementById("pagination");
+
+  if(totalPages <= 1){
+    el.innerHTML = "";
+    return;
+  }
+
+  el.innerHTML = `
+    <button ${currentPage===1?"disabled":""}
+      onclick="gotoPage(${currentPage-1})">Prev</button>
+
+    Page ${currentPage} / ${totalPages}
+
+    <button ${currentPage===totalPages?"disabled":""}
+      onclick="gotoPage(${currentPage+1})">Next</button>
+  `;
+}
+
+function gotoPage(p){
+  currentPage = p;
+  renderPeers();
+}
+
+
 
 async function addPeer(){
   const name=newName.value.trim();
@@ -399,9 +495,74 @@ function toggleEditPrivateKeyVisibility() {
   textarea.style.webkitTextSecurity = show ? "none" : "disc";
 }
 
+/* CHANGE PASSWORD */
+
+async function changePassword(){
+  if(newPass.value.length < 6)
+    return alert("Password too short");
+
+  const r = await fetch("/api/change-password",{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({
+      oldPassword: oldPass.value,
+      newPassword: newPass.value
+    })
+  });
+
+  if(r.ok){
+    alert("Password changed");
+    oldPass.value = newPass.value = "";
+  } else {
+    alert("Wrong old password");
+  }
+}
+
+async function logout(){
+  await fetch("/api/logout",{method:"POST"});
+  location.href="/login.html";
+}
+
+function openChangePassword(){
+  passwordPopup.style.display="block";
+}
+
+function closeChangePassword(){
+  passwordPopup.style.display="none";
+  oldPass.value = newPass.value = newPass2.value = "";
+}
+
+async function changePassword(){
+  if(newPass.value.length < 6)
+    return alert("Password too short");
+
+  if(newPass.value !== newPass2.value)
+    return alert("Passwords do not match");
+
+  const r = await fetch("/api/change-password",{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({
+      oldPassword: oldPass.value,
+      newPassword: newPass.value
+    })
+  });
+
+  if(r.ok){
+    alert("Password changed");
+    closeChangePassword();
+  } else {
+    alert("Wrong old password");
+  }
+}
+
 
 
 /* INIT */
+fetch("/api/peers").then(r=>{
+  if(r.status === 401) location.href="/login.html";
+});
+
 loadServer();
 loadPeers();
 setInterval(loadPeers,5000);

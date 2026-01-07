@@ -1,10 +1,19 @@
 const express = require("express");
 const fs = require("fs");
 const { execSync } = require("child_process");
+const session = require("express-session");
+const bcrypt = require("bcrypt");
+const AUTH_FILE = "./data/auth.json";
 
 const app = express();
 app.use(express.json());
 app.use(express.static("./public"));
+app.use(session({
+  secret: "0596c4e2b40b60ea468babd6af68e6d094f66f04df8b3a588adb60ad7e7dcbf7",
+  resave: false,
+  saveUninitialized: false
+}));
+
 
 const WG_IFACE = "wg0";
 const WG_CONF = "/etc/wireguard/wg0.conf";
@@ -43,6 +52,56 @@ function ipConflict(peers, ips, exclude) {
     p.ips?.some(ip => ips.includes(ip))
   );
 }
+
+/* =======================
+   AUTHENTICATION
+======================= */
+
+function readAuth(){
+  return JSON.parse(fs.readFileSync(AUTH_FILE));
+}
+
+function writeAuth(data){
+  fs.writeFileSync(AUTH_FILE, JSON.stringify(data,null,2));
+}
+
+function requireLogin(req,res,next){
+  if(!req.session.user) return res.status(401).json({error:"Unauthorized"});
+  next();
+}
+
+app.post("/api/login", async (req,res)=>{
+  const { username, password } = req.body;
+  const auth = readAuth();
+
+  if(username !== auth.username)
+    return res.status(401).json({error:"Invalid login"});
+
+  const ok = await bcrypt.compare(password, auth.password);
+  if(!ok) return res.status(401).json({error:"Invalid login"});
+
+  req.session.user = username;
+  res.json({ success:true });
+});
+
+app.post("/api/logout",(req,res)=>{
+  req.session.destroy(()=>res.json({success:true}));
+});
+
+app.use("/api", requireLogin);
+
+app.post("/api/change-password", async (req,res)=>{
+  const { oldPassword, newPassword } = req.body;
+  const auth = readAuth();
+
+  const ok = await bcrypt.compare(oldPassword, auth.password);
+  if(!ok) return res.status(400).json({error:"Wrong password"});
+
+  auth.password = await bcrypt.hash(newPassword, 10);
+  writeAuth(auth);
+
+  res.json({ success:true });
+});
 
 /* =======================
    SERVER STATUS
@@ -265,6 +324,7 @@ app.delete("/api/peers/:name", (req, res) => {
 
   res.json({ status: "deleted" });
 });
+
 
 /* =======================
    START SERVER

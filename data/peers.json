@@ -46,5 +46,23 @@
       "10.10.1.10"
     ],
     "disabled": false
+  },
+  {
+    "name": "test2",
+    "privateKey": "oArFVwV4qEwRt71e9mDUvdtFQMib4qGY4pfIPFSJ7kY=",
+    "publicKey": "vtIrc0fG85td1H97Yo1voPKBVUMFvfn7H5vhoweNUAY=",
+    "ips": [
+      "10.10.1.11"
+    ],
+    "disabled": false
+  },
+  {
+    "name": "test3",
+    "privateKey": "OCXg48pFk+A6bBxJppmlQW+0U2YiY0UZ3T3PHHBmlGs=",
+    "publicKey": "ukIMt03NDANiiVXV5mKxtN7dgfLhmA5UDPGWTvFpEGI=",
+    "ips": [
+      "10.10.1.12"
+    ],
+    "disabled": false
   }
 ]
