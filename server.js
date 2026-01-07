@@ -202,6 +202,21 @@ app.put("/api/peers/:name", (req, res) => {
   res.json({ status: "updated" });
 });
 
+// Generate WireGuard keypair
+app.post("/api/genkey", (req, res) => {
+  const { execSync } = require("child_process");
+
+  try {
+    const privateKey = execSync("wg genkey").toString().trim();
+    const publicKey = execSync(`echo ${privateKey} | wg pubkey`)
+      .toString().trim();
+
+    res.json({ privateKey, publicKey });
+  } catch (e) {
+    res.status(500).json({ error: "Key generation failed" });
+  }
+});
+
 /* =======================
    DISABLE / ENABLE
 ======================= */

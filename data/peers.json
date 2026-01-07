@@ -2,7 +2,8 @@
   {
     "name": "client1",
     "ips": [
-      "10.10.0.2/32"
+      "10.10.1.2/32",
+      "192.168.11.0/24"
     ],
     "publicKey": "HE8xgPQ4lPXXlmDCl00FEbJYhtcP501U+pdHEqKS/2k=",
     "privateKey": "SHKOu2TrqW0rkkPCoNMEHzG7YlYb8Omb5uvo4bgs20Y=",
@@ -12,7 +13,7 @@
   {
     "name": "client2",
     "ips": [
-      "10.10.0.3/32"
+      "10.10.1.3/32"
     ],
     "publicKey": "ecHZ+VuBgO0scXNSB3uYpqkA/IxljpV5OXHwbBltcXA=",
     "privateKey": "cMd8vK4SNa0i4r0a3zj9VF8p3YKtmafTit3nsVDzdEE=",
@@ -20,20 +21,29 @@
     "createdAt": "2026-01-06T04:36:43.459Z"
   },
   {
-    "name": "client3",
+    "name": "judin",
     "privateKey": "mLq/z9OYkiKoyP2oU14yr65QgIm1FDZ4DETPrzGMqU4=",
     "publicKey": "whdcc8meVSHrx/2z+tcJw2PntXny9a0VtSZq7Swx9h0=",
     "ips": [
-      "10.10.0.4/32"
+      "10.10.1.4/32"
     ],
     "disabled": false
   },
   {
-    "name": "aphine-2",
-    "privateKey": "KJ/8DSiQ/g2qagluYKZsEqGB+kvxOdCdLjOdZHAZ51A=",
-    "publicKey": "rfTZ06ruY3B9x98arKRpp+n+v618idGElkm6SysElms=",
+    "name": "cloent3",
+    "privateKey": "mKXpIt+C/dEsyPlA3AzGplMDKHc98gr60nBv5guet3E=",
+    "publicKey": "WTDRYz4uV/kWTczpZCHM9KYhMFetgA//jqS+t1wFyEM=",
     "ips": [
-      "10.10.0.6/32"
+      "10.10.1.5/32"
+    ],
+    "disabled": false
+  },
+  {
+    "name": "test",
+    "privateKey": "oGkSMfb+aBXMw7JtRszbnLFRgI4BSreL99o7lx0LUVE=",
+    "publicKey": "kOaLKpHYywoxz809Ts5JGNogfJXpqkK0HqqIm+tejXA=",
+    "ips": [
+      "10.10.1.10"
     ],
     "disabled": false
   }
